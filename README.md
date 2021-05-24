@@ -1,5 +1,5 @@
 ### Hi there 👋
-
+I works on service meth, cloud native, k8s such things currently. Like working with golang.
 <!--
 **havardzzl/havardzzl** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
 
