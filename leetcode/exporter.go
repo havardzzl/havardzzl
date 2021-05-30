@@ -1,5 +1,8 @@
 package leetcode
 
-var FindKthNumber = findKthNumber
-
-var DeleteDuplicates2 = deleteDuplicates2
+var (
+	FindKthNumber     = findKthNumber
+	DeleteDuplicates2 = deleteDuplicates2
+	ReverseVowels     = reverseVowels
+	PalindromePairs   = palindromePairs
+)
