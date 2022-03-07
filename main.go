@@ -7,5 +7,7 @@ import (
 )
 
 func main() {
-	fmt.Println(leetcodeoffer.HammingWeight(44))
+	res := &[]int{}
+	leetcodeoffer.InorderTraversal(leetcodeoffer.TestTree, res)
+	fmt.Println(*res)
 }
