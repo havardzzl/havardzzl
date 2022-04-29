@@ -1,19 +1,34 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+	// "github.com/havardzzl/havardzzl/leetcodeoffer"
+)
 
-func gMap[T1 any, T2 any](arr []T1, f func(T1) T2) []T2 {
-	result := make([]T2, len(arr))
-	for i, elem := range arr {
-		result[i] = f(elem)
-	}
-	return result
+type K struct {
+	B int
+	A int
+}
+
+func (k *K) Chdl() {
+	fmt.Println("chdl")
+}
+
+func kdf(k *K) {
+	defer updateMutationElapsedTimeMetrics()()
+	time.Sleep(time.Second)
+	k.Chdl()
 }
 
 func main() {
-	nums := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
-	squares := gMap(nums, func(elem int) int {
-		return elem * elem
-	})
-	fmt.Println(squares)
+	kdf(nil)
+}
+
+func updateMutationElapsedTimeMetrics() func() {
+	start := time.Now()
+	return func() {
+		end := time.Now()
+		fmt.Println("Elapsed time:", end.Sub(start))
+	}
 }

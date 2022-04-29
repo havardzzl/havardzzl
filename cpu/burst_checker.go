@@ -1,9 +1,7 @@
 package main
 
 import (
-	"crypto/md5"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -15,47 +13,47 @@ import (
 )
 
 var (
-	period        = 100 * time.Millisecond
-	cpuWorkTimes  = 2
-	scheduleTimes = 100
+	maxCalTime    time.Duration
+	minCalTime    time.Duration = time.Hour
+	avgCalTime    time.Duration
+	period        = 200 * time.Millisecond
+	cpuWorkTimes  = 6
+	scheduleTimes = 10
 )
 
-// 大概两毫秒
 func cal() {
-	w := md5.New()
-	for i := 0; i < 10000; i++ {
-		ts := time.Now().UnixNano()
-		s := fmt.Sprintf("%d", ts)
-		io.WriteString(w, s)
+	var k int64 = 3759304
+	var i int64
+	for i = 1; i < k; i++ {
+		if k%i == 0 {
+			i = i + 1
+		}
 	}
 }
 
-func cpuWork(period time.Duration, num int) {
+func cpuWork(calTime time.Duration, workers int) {
+	times := int(calTime / avgCalTime)
 	var wg sync.WaitGroup
-	wg.Add(num)
-	for i := 0; i < num; i++ {
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
 		go func() {
 			defer wg.Done()
-			var start, total int64
+			var time int
 			for {
-				if total > int64(period) {
+				cal()
+				time++
+				if time >= times {
 					break
 				}
-				start = time.Now().UnixNano()
-				cal()
-				total += time.Now().UnixNano() - start
 			}
 		}()
 	}
 	wg.Wait()
 }
 
-// 给定cpu request/limit 1c
-// 没有cpu burst时，理论上耗时：100 * (100ms + 2 * 100ms) = 30s
-// 有cpu burst时，理论上耗时：100 * (100ms + 100ms) = 20s
 func schedule() {
 	for i := 0; i < scheduleTimes; i++ {
-		time.Sleep(period)
+		time.Sleep(2 * period)
 		cpuWork(period, cpuWorkTimes)
 	}
 }
@@ -63,32 +61,19 @@ func schedule() {
 func test1() string {
 	res := ""
 	start := time.Now()
-	cal()
-	cost := time.Since(start)
-	res += fmt.Sprintf("each cal cost: %s", cost)
-	fmt.Println("each cal cost: ", cost)
-
-	start = time.Now()
 	cpuWork(period, cpuWorkTimes)
-	cost = time.Since(start)
-	res += fmt.Sprintf(", each cpu work cost: %s", cost)
+	cost := time.Since(start)
 	fmt.Println("each cpuWork cost: ", cost)
 
 	start = time.Now()
 	schedule()
 	cost = time.Since(start)
-	res += fmt.Sprintf(", each schedule cost: %s", cost)
+	res += fmt.Sprintf(", schedule cost: %s", cost)
 	fmt.Println("total cost: ", cost)
 	return res
 }
 
 func Routes(r *gin.Engine) {
-	r.GET("/api/go_git", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message":  "Welcome to Gin Framework",
-			"headers:": c.Request.Header,
-		})
-	})
 	r.GET("/set", func(c *gin.Context) {
 		p := struct {
 			CpuWorkTimes  int `form:"cpuWorkTimes"`
@@ -111,7 +96,25 @@ func Routes(r *gin.Engine) {
 }
 
 func main() {
-	runtime.GOMAXPROCS(20)
+	var start time.Time
+	var total time.Duration
+	calTime := 100
+	for i := 0; i < calTime; i++ {
+		start = time.Now()
+		cal()
+		cost := time.Since(start)
+		total += cost
+		if cost > maxCalTime {
+			maxCalTime = cost
+		}
+		if cost < minCalTime {
+			minCalTime = cost
+		}
+	}
+	avgCalTime = total / time.Duration(calTime)
+	fmt.Printf("cal cost: max: %s, min: %s, avg: %s\n", maxCalTime, minCalTime, avgCalTime)
+
+	runtime.GOMAXPROCS(16)
 	var handler http.Handler
 	router := gin.Default()
 	// router.Use(UserMiddleware)

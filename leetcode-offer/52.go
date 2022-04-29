@@ -1,5 +1,10 @@
 package leetcodeoffer
 
+type K struct {
+	B int
+	A int
+}
+
 func increasingBST(root *TreeNode) *TreeNode {
 	dm := &TreeNode{}
 	cur := dm
