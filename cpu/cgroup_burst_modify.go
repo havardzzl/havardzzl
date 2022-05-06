@@ -1,12 +1,17 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io/fs"
 	"math"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"regexp"
+	"syscall"
+	"time"
 
 	"github.com/opencontainers/runc/libcontainer/cgroups"
 	"github.com/opencontainers/runc/libcontainer/cgroups/fscommon"
@@ -22,7 +27,43 @@ const (
 
 var (
 	changeFiles int
+
+	// pod: kubepods-burstable-pod{$pod-uid}.slice
+	// container: docker-{$ContainerID}.scope
+	podRegexp       = regexp.MustCompile(`kubepods-burstable-pod([^\}]+).slice`)
+	containerRegexp = regexp.MustCompile(`docker-([^\}]+).scope`)
+
+	// container维度的
+	metricsKV map[metricKey]metricValue
 )
+
+func GetStats(path string, stats *metricValue) error {
+	const file = "cpu.stat"
+	f, err := cgroups.OpenFile(path, file, os.O_RDONLY)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	defer f.Close()
+
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		t, v, err := fscommon.ParseKeyValue(sc.Text())
+		if err != nil {
+			return &fscommon.ParseError{Path: path, File: file, Err: err}
+		}
+		switch t {
+		case "burst_time":
+			stats.burstTime = v
+
+		case "throttled_time":
+			stats.throttledTime = v
+		}
+	}
+	return nil
+}
 
 func walkDirFunc(path string, d fs.DirEntry, err error) error {
 	if err != nil || d == nil {
@@ -55,6 +96,20 @@ func walkDirFunc(path string, d fs.DirEntry, err error) error {
 	} else {
 		changeFiles++
 	}
+	// 上报metrics
+	pod := filepath.Base(path)
+	container := d.Name()
+	podMatch := podRegexp.FindStringSubmatch(pod)
+	containerMatch := containerRegexp.FindStringSubmatch(container)
+	if len(podMatch) == 2 && len(containerMatch) == 2 {
+		key := metricKey{podMatch[1], containerMatch[1]}
+		value := metricValue{}
+		if err := GetStats(path, &value); err != nil {
+			klog.ErrorS(err, "GetStats failed: ", path)
+		}
+		metricsKV[key] = value
+	}
+
 	return nil
 }
 
@@ -64,11 +119,34 @@ func work() {
 			klog.Error("work panic: ", err)
 		}
 	}()
+	for k := range metricsKV {
+		delete(metricsKV, k)
+	}
 	changeFiles = 0
 	filepath.WalkDir(baseDir, walkDirFunc)
+	klog.V(5).Infof("metricsKV: %+v", metricsKV)
+	for k, v := range metricsKV {
+		RecordMetrics(k, v)
+	}
 	if changeFiles == 0 {
 		klog.Info("没有发现需要修改的文件")
 		return
 	}
 	klog.Info("changeFiles: ", changeFiles)
+}
+
+func main() {
+	go func() {
+		for {
+			work()
+			time.Sleep(5 * time.Second)
+		}
+	}()
+	StartMetricsServer()
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, os.Kill, syscall.SIGTERM)
+	<-c
+	StopMetricsServer()
+	fmt.Println("byebye")
+	os.Exit(0)
 }

@@ -95,7 +95,7 @@ func Routes(r *gin.Engine) {
 	})
 }
 
-func main() {
+func main1() {
 	var start time.Time
 	var total time.Duration
 	calTime := 100
