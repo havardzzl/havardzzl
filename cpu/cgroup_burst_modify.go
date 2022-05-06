@@ -91,11 +91,11 @@ func walkDirFunc(path string, d fs.DirEntry, err error) error {
 		return nil
 	}
 	if quota < 0 || quota == math.MaxInt64 {
-		cgroups.WriteFile(path, burstFileName, fmt.Sprintf("%d", defaultQuota))
+		cgroups.WriteFile(path, burstFile, fmt.Sprintf("%d", defaultQuota))
 		return nil
 	}
 	// burst的值是quota的2倍效果更好，但是测试发现不行
-	errb := cgroups.WriteFile(path, burstFileName, fmt.Sprintf("%d", quota))
+	errb := cgroups.WriteFile(path, burstFile, fmt.Sprintf("%d", quota))
 	if errb != nil {
 		klog.ErrorS(errb, "WriteFile failed: ", path, burstFileName, quota)
 	} else {
