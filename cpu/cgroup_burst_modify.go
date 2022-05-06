@@ -37,7 +37,7 @@ var (
 	metricsKV map[metricKey]metricValue
 )
 
-func GetStats(path string, stats *metricValue) error {
+func getCpuStats(path string, stats *metricValue) error {
 	const file = "cpu.stat"
 	f, err := cgroups.OpenFile(path, file, os.O_RDONLY)
 	if err != nil {
@@ -55,11 +55,16 @@ func GetStats(path string, stats *metricValue) error {
 			return &fscommon.ParseError{Path: path, File: file, Err: err}
 		}
 		switch t {
-		case "burst_time":
-			stats.burstTime = v
-
+		case "nr_periods":
+			stats.periods = v
+		case "nr_throttled":
+			stats.throttledPeriods = v
 		case "throttled_time":
 			stats.throttledTime = v
+		case "nr_bursts":
+			stats.burstPeriods = v
+		case "burst_time":
+			stats.burstTime = v
 		}
 	}
 	return nil
@@ -104,7 +109,7 @@ func walkDirFunc(path string, d fs.DirEntry, err error) error {
 	if len(podMatch) == 2 && len(containerMatch) == 2 {
 		key := metricKey{podMatch[1], containerMatch[1]}
 		value := metricValue{}
-		if err := GetStats(path, &value); err != nil {
+		if err := getCpuStats(path, &value); err != nil {
 			klog.ErrorS(err, "GetStats failed: ", path)
 		}
 		metricsKV[key] = value

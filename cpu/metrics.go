@@ -36,16 +36,39 @@ func StopMetricsServer() {
 
 // kubepods-burstable-pod503aa307_2ead_4099_be3a_6e824c92ab09.slice
 type definedMetrics struct {
-	// 请求数
-	throttledTime *prometheus.GaugeVec
-	burstTime     *prometheus.GaugeVec
+	periods          *prometheus.GaugeVec
+	throttledPeriods *prometheus.GaugeVec
+	throttledTime    *prometheus.GaugeVec
+	burstPeriods     *prometheus.GaugeVec
+	burstTime        *prometheus.GaugeVec
 }
 
 var metrics = definedMetrics{
+	periods: prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "periods",
+			Help: "Number of periods",
+		},
+		[]string{"pod", "container"},
+	),
+	throttledPeriods: prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "throttled_periods",
+			Help: "Number of throttled periods",
+		},
+		[]string{"pod", "container"},
+	),
 	throttledTime: prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "throttled_time",
 			Help: "The total number of requests throttled by the throttler.",
+		},
+		[]string{"pod", "container"},
+	),
+	burstPeriods: prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "burst_periods",
+			Help: "Number of burst periods",
 		},
 		[]string{"pod", "container"},
 	),
@@ -59,7 +82,7 @@ var metrics = definedMetrics{
 }
 
 func init() {
-	prometheus.MustRegister(metrics.throttledTime, metrics.burstTime)
+	prometheus.MustRegister(metrics.periods, metrics.throttledPeriods, metrics.throttledTime, metrics.burstPeriods, metrics.burstTime)
 }
 
 type metricKey struct {
@@ -68,17 +91,17 @@ type metricKey struct {
 }
 
 type metricValue struct {
-	throttledTime uint64
-	burstTime     uint64
+	periods          uint64
+	throttledPeriods uint64
+	throttledTime    uint64
+	burstPeriods     uint64
+	burstTime        uint64
 }
 
 func RecordMetrics(k metricKey, v metricValue) {
-	metrics.throttledTime.With(prometheus.Labels{
-		"pod":       k.pod,
-		"container": k.container,
-	}).Set(float64(v.throttledTime))
-	metrics.burstTime.With(prometheus.Labels{
-		"pod":       k.pod,
-		"container": k.container,
-	}).Set(float64(v.burstTime))
+	metrics.periods.With(prometheus.Labels{"pod": k.pod, "container": k.container}).Set(float64(v.periods))
+	metrics.throttledPeriods.With(prometheus.Labels{"pod": k.pod, "container": k.container}).Set(float64(v.throttledPeriods))
+	metrics.throttledTime.With(prometheus.Labels{"pod": k.pod, "container": k.container}).Set(float64(v.throttledTime))
+	metrics.burstPeriods.With(prometheus.Labels{"pod": k.pod, "container": k.container}).Set(float64(v.burstPeriods))
+	metrics.burstTime.With(prometheus.Labels{"pod": k.pod, "container": k.container}).Set(float64(v.burstTime))
 }
