@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io/fs"
 	"math"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -13,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/opencontainers/runc/libcontainer/cgroups"
 	"github.com/opencontainers/runc/libcontainer/cgroups/fscommon"
 	"k8s.io/klog/v2"
@@ -26,6 +29,7 @@ const (
 )
 
 var (
+	burstFlag   bool = true
 	changeFiles int
 
 	// pod: kubepods-burstable-pod{$pod-uid}.slice
@@ -70,6 +74,16 @@ func getCpuStats(path string, stats *metricValue) error {
 	return nil
 }
 
+func getBurst(quota int64) int64 {
+	if !burstFlag {
+		return 0
+	}
+	if quota < 0 || quota == math.MaxInt64 {
+		return defaultQuota
+	}
+	return quota
+}
+
 func walkDirFunc(path string, d fs.DirEntry, err error) error {
 	if err != nil || d == nil {
 		klog.ErrorS(err, "walkDirFunc failed: ", path)
@@ -90,14 +104,12 @@ func walkDirFunc(path string, d fs.DirEntry, err error) error {
 		}
 		return nil
 	}
-	if quota < 0 || quota == math.MaxInt64 {
-		cgroups.WriteFile(path, burstFile, fmt.Sprintf("%d", defaultQuota))
-		return nil
-	}
-	// burst的值是quota的2倍效果更好，但是测试发现不行
-	errb := cgroups.WriteFile(path, burstFile, fmt.Sprintf("%d", quota))
+	burst := getBurst(quota)
+	errb := cgroups.WriteFile(path, burstFile, fmt.Sprintf("%d", burst))
 	if errb != nil {
-		klog.ErrorS(errb, "WriteFile failed: ", path, burstFileName, quota)
+		if quota > 0 {
+			klog.ErrorS(errb, "WriteFile failed: ", path, burstFileName, burst)
+		}
 	} else {
 		changeFiles++
 	}
@@ -140,12 +152,37 @@ func work() {
 	klog.Info("changeFiles: ", changeFiles)
 }
 
+func Routes2(r *gin.Engine) {
+	r.GET("/open", func(c *gin.Context) {
+		burstFlag = true
+	})
+	r.GET("/close", func(c *gin.Context) {
+		burstFlag = false
+	})
+}
+
 func main() {
 	go func() {
 		for {
 			work()
 			time.Sleep(5 * time.Second)
 		}
+	}()
+	go func() {
+		router := gin.Default()
+		Routes2(router)
+		handler := router
+		srv := &http.Server{
+			Addr:         ":8386",
+			Handler:      handler,
+			ReadTimeout:  10 * time.Second,
+			WriteTimeout: 10 * time.Second,
+		}
+		listener, err := net.Listen("tcp", srv.Addr)
+		if err != nil {
+			klog.Fatal("listen error: ", err)
+		}
+		srv.Serve(listener)
 	}()
 	StartMetricsServer()
 	c := make(chan os.Signal, 1)
