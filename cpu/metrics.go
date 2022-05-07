@@ -9,7 +9,7 @@ import (
 	"k8s.io/klog/v2"
 )
 
-const metricsPort = 8386
+const metricsPort = 9090
 
 var metricsServer *http.Server
 
