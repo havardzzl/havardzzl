@@ -38,7 +38,7 @@ var (
 	containerRegexp = regexp.MustCompile(`docker-([^\}]+).scope`)
 
 	// container维度的
-	metricsKV map[metricKey]metricValue
+	metricsKV = map[metricKey]metricValue{}
 )
 
 func getCpuStats(path string, stats *metricValue) error {
@@ -114,8 +114,9 @@ func walkDirFunc(path string, d fs.DirEntry, err error) error {
 		changeFiles++
 	}
 	// 上报metrics
-	pod := filepath.Base(path)
+	pod := filepath.Base(filepath.Dir(path))
 	container := d.Name()
+	klog.Info("handling pod: ", pod, " container: ", container)
 	podMatch := podRegexp.FindStringSubmatch(pod)
 	containerMatch := containerRegexp.FindStringSubmatch(container)
 	if len(podMatch) == 2 && len(containerMatch) == 2 {
@@ -141,7 +142,7 @@ func work() {
 	}
 	changeFiles = 0
 	filepath.WalkDir(baseDir, walkDirFunc)
-	klog.V(5).Infof("metricsKV: %+v", metricsKV)
+	klog.Infof("metricsKV: %+v", metricsKV)
 	for k, v := range metricsKV {
 		RecordMetrics(k, v)
 	}

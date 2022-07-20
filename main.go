@@ -2,33 +2,19 @@ package main
 
 import (
 	"fmt"
-	"time"
-	// "github.com/havardzzl/havardzzl/leetcodeoffer"
+	"io/ioutil"
+	"net/http"
 )
 
-type K struct {
-	B int
-	A int
-}
-
-func (k *K) Chdl() {
-	fmt.Println("chdl")
-}
-
-func kdf(k *K) {
-	defer updateMutationElapsedTimeMetrics()()
-	time.Sleep(time.Second)
-	k.Chdl()
+func HelloHandler(w http.ResponseWriter, r *http.Request) {
+	bs, _ := ioutil.ReadAll(r.Body)
+	fmt.Println("get body: " + string(bs))
+	r.Body.Close()
+	fmt.Fprintf(w, "Hello World")
 }
 
 func main() {
-	kdf(nil)
-}
-
-func updateMutationElapsedTimeMetrics() func() {
-	start := time.Now()
-	return func() {
-		end := time.Now()
-		fmt.Println("Elapsed time:", end.Sub(start))
-	}
+	http.HandleFunc("/", HelloHandler)
+	fmt.Println("begin listening at :8979")
+	http.ListenAndServe(":8979", nil)
 }
