@@ -7,7 +7,6 @@ import (
 	"io"
 	"math"
 	"net/http"
-	"sync"
 	"time"
 	_ "time/tzdata"
 )
@@ -19,7 +18,7 @@ const (
 )
 
 var (
-	wg      sync.WaitGroup
+	// wg      sync.WaitGroup
 	httpCli = &http.Client{
 		Transport: &http.Transport{
 			MaxIdleConnsPerHost: 20,

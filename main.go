@@ -2,49 +2,47 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
-	"net/http"
-	"os/exec"
-	"strconv"
-	"time"
+	"sync"
 
-	"github.com/havardzzl/havardzzl/probe"
+	"github.com/havardzzl/havardzzl/db"
 )
 
-func HelloHandler(w http.ResponseWriter, r *http.Request) {
-	bs, _ := ioutil.ReadAll(r.Body)
-	fmt.Println("get body: " + string(bs))
-	r.Body.Close()
-	fmt.Fprintf(w, "Hello World")
-}
+var (
+	cc = make(chan int)
+	wg sync.WaitGroup
+)
 
-func KubeHandler(w http.ResponseWriter, r *http.Request) {
-	cmd := exec.Command("kubectl", "get", "nodes")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Println(err.Error())
-		fmt.Fprint(w, err.Error())
-		return
+func workCc(cnt int) {
+	defer wg.Done()
+	fmt.Println("I'am wait for cc: ", cnt)
+	for {
+		i, ok := <-cc
+		if !ok {
+			fmt.Println("cc closed quit")
+			return
+		}
+		fmt.Println("get from cc:", i, " I'am ", cnt)
 	}
-	fmt.Fprint(w, string(output))
-}
-
-func TimeHandler(w http.ResponseWriter, r *http.Request) {
-	ms := 100
-	msr := r.URL.Query().Get("ms")
-	if msr != "" {
-		ms, _ = strconv.Atoi(msr)
-	}
-	time.Sleep(time.Duration(ms) * time.Millisecond)
-	fmt.Fprintf(w, "Hi")
 }
 
 func main() {
-	// http.HandleFunc("/", HelloHandler)
-	// http.HandleFunc("/kube", KubeHandler)
-	// http.HandleFunc("/time", TimeHandler)
-	// fmt.Println("begin listening at :8979")
-	// http.ListenAndServe(":8979", nil)
+	db.Init()
+	db.NewTask()
+	db.Close()
 
-	fmt.Println("probe result:", probe.ProbeTls())
+	// con := 3
+	// for i := 0; i < con; i++ {
+	// 	go workCc(i)
+	// }
+	// wg.Add(con)
+	// go func() {
+	// 	time.Sleep(time.Second)
+	// 	cc <- 5
+	// 	time.Sleep(time.Second * 2)
+	// 	cc <- 6
+	// 	time.Sleep(time.Second * 3)
+	// 	cc <- 7
+	// 	close(cc)
+	// }()
+	// wg.Wait()
 }
